@@ -1,0 +1,91 @@
+
+
+<canvas width="1280" height="720" style="width:1280;height:720" id="test"></canvas>
+<script>
+
+function ground(p) { //随便写一个根据(x,z)返回地表高度函数
+	return Math.sin(p[0]*0.001) * 500. + Math.cos(p[2]*0.001) * 500. - 1000.; //p[0]是x坐标，p[2]是z坐标，返回地表的高度，人眼的y为0，我们把地表设的低一些
+}
+
+function calcNormal(p) {
+        return normalize([ground([p[0]-0.01,p[1],p[2]]) - ground([p[0]+0.01,p[1],p[2]]), 0.02, ground([p[0],p[1],p[2]-0.01]) - ground([p[0],p[1],p[2]+0.01])]);
+}
+
+function raymarch(ro, rd) { //从眼睛出发，沿rd方向前进
+    for (var f=0; f<10000;) { //最大探测距离10000
+        var pos = [ro[0]+rd[0]*f, ro[1]+rd[1]*f, ro[2]+rd[2]*f]; //就是pos=ro+rd*f
+        if (pos[1] <= -800.) { //假设水平面是y=-800
+            return {
+                type: 0, //0代表是碰到了水
+                pos: pos,
+                far: f
+            };
+        }
+
+        var y = ground(pos);
+        if (pos[1] <= y) {
+            return {
+                type: 1, //1代表是碰到了土
+                pos: pos,
+                far: f
+            };
+        }
+
+        //这次没有碰到东西，就往前挪一点，远的物体更小，所以越远可以挪的越快
+        f+=Math.max(1, 0.01*f);  //提低数值可以提高精细度
+    }
+    return null; //超出了最大探测距离，什么都没碰到
+}
+
+function normalize(p) { //将p归一化为单位向量，就是把向量长度等比缩放到1
+        let len = Math.sqrt(p[0]*p[0]+p[1]*p[1]+p[2]*p[2]);
+        return [p[0]/len,p[1]/len,p[2]/len];
+    }
+
+
+var LIGHT = normalize([1,1,1]);
+function f(x, y) {
+    var ro = [0, 0, -Math.sqrt(3)];
+    var ta = [0, 0, 5000];
+
+    var nl = height / 2; //屏幕高度为2，每个单位长度是多少像素
+    var xy = [(x - width/2) / nl, (y - height/2) / nl];
+    var rd = normalize([xy[0],xy[1],Math.sqrt(3)]);
+
+    var hit = raymarch(ro, rd);
+    var col;
+    if (hit != null) {
+        var nor;
+        if (hit.type == 1) {
+            nor = calcNormal(hit.pos);
+            col = [0.7, 0.7, 0.5];
+        } else {
+            nor = [0, 1, 0]; //水面的法线垂直向上
+            col = [0.0, 0.5, 0.7];
+        }
+        var lt = Math.max(0, nor[0]*LIGHT[0]+nor[1]*LIGHT[1]+nor[2]*LIGHT[2]);
+        col = [col[0]*lt, col[1]*lt, col[2]*lt];
+    } else {
+        col = [0, 0, 1];
+    }
+    return col;
+}
+
+    const canvas = document.getElementById('test');
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    const imageData = ctx.createImageData(width, height);
+
+    let i = 0;
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            var c = f(x, height-y);
+            imageData.data[i++] = c[0]*255;
+            imageData.data[i++] = c[1]*255;
+            imageData.data[i++] = c[2]*255;
+            imageData.data[i++] = 255;
+        }
+    }
+    ctx.putImageData(imageData, 0, 0);
+</script>
